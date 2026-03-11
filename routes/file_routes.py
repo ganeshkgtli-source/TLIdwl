@@ -1,5 +1,6 @@
-from flask import Blueprint, render_template, request, send_file, jsonify
+from flask import Blueprint, render_template, request, send_file, redirect
 import sqlite3
+import os
 import zipfile
 import io
 
@@ -11,118 +12,167 @@ file_routes = Blueprint("file_routes", __name__)
 @file_routes.route("/files")
 def view_files():
 
+    selected_year = request.args.get("year")
+    selected_month = request.args.get("month")
+
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT id,file_name,trade_date,year,month
+    query = """
+        SELECT id, file_name, trade_date, year, month
         FROM bhavcopy_files
-        WHERE is_deleted=0
-        ORDER BY trade_date DESC
-    """)
+        WHERE is_deleted = 0
+    """
 
+    params = []
+
+    if selected_year:
+        query += " AND year = ?"
+        params.append(selected_year)
+
+    if selected_month:
+        query += " AND month = ?"
+        params.append(selected_month)
+
+    query += " ORDER BY trade_date DESC"
+
+    cursor.execute(query, params)
     files = cursor.fetchall()
+
+    cursor.execute("SELECT DISTINCT year FROM bhavcopy_files ORDER BY year DESC")
+    years = [row[0] for row in cursor.fetchall()]
+
+    cursor.execute("SELECT DISTINCT month FROM bhavcopy_files ORDER BY month")
+    months = [row[0] for row in cursor.fetchall()]
 
     conn.close()
 
-    return render_template("files.html", files=files)
+    return render_template(
+        "files.html",
+        files=files,
+        years=years,
+        months=months,
+        selected_year=selected_year,
+        selected_month=selected_month
+    )
 
 
 @file_routes.route("/download-selected", methods=["POST"])
 def download_selected():
 
-    selected_ids = request.form.getlist("file_ids")
+    ids = request.form.getlist("file_ids")
+
+    if not ids:
+        return "No files selected"
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    zip_buffer = io.BytesIO()
+    placeholders = ",".join(["?"] * len(ids))
 
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as z:
+    cursor.execute(
+        f"""
+        SELECT file_name, year, month
+        FROM bhavcopy_files
+        WHERE id IN ({placeholders})
+        """,
+        ids
+    )
 
-        for file_id in selected_ids:
-
-            cursor.execute("""
-                SELECT file_name,year,month,file_data
-                FROM bhavcopy_files
-                WHERE id=?
-            """, (file_id,))
-
-            row = cursor.fetchone()
-
-            if row:
-
-                file_name, year, month, file_data = row
-
-                zip_path = f"Bhavcopy/{year}/{month}/{file_name}"
-
-                z.writestr(zip_path, file_data)
-
+    files = cursor.fetchall()
     conn.close()
 
-    zip_buffer.seek(0)
+    memory_file = io.BytesIO()
+
+    with zipfile.ZipFile(memory_file, "w") as zf:
+
+        for file_name, year, month in files:
+
+            file_path = os.path.join(
+                "Downloaded",
+                str(year),
+                str(month),
+                file_name
+            )
+
+            if os.path.exists(file_path):
+                zf.write(file_path, file_name)
+
+    memory_file.seek(0)
 
     return send_file(
-        zip_buffer,
-        mimetype="application/zip",
-        as_attachment=True,
-        download_name="Bhavcopy.zip"
+        memory_file,
+        download_name="bhavcopy_files.zip",
+        as_attachment=True
     )
 
 
 @file_routes.route("/delete-selected", methods=["POST"])
 def delete_selected():
 
-    selected_ids = request.form.getlist("file_ids")
+    ids = request.form.getlist("file_ids")
+
+    if not ids:
+        return redirect("/files")
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    for file_id in selected_ids:
+    placeholders = ",".join(["?"] * len(ids))
 
-        cursor.execute(
-            "DELETE FROM bhavcopy_files WHERE id=?",
-            (file_id,)
-        )
+    cursor.execute(
+        f"""
+        UPDATE bhavcopy_files
+        SET is_deleted = 1
+        WHERE id IN ({placeholders})
+        """,
+        ids
+    )
 
     conn.commit()
     conn.close()
 
-    return jsonify({"message": "Files deleted"})
+    return redirect("/files")
 
 
 @file_routes.route("/delete-temp", methods=["POST"])
 def delete_temp():
 
-    selected_ids = request.form.getlist("file_ids")
+    ids = request.form.getlist("file_ids")
+
+    if not ids:
+        return redirect("/trash")
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    for file_id in selected_ids:
+    placeholders = ",".join(["?"] * len(ids))
 
-        cursor.execute("""
-            UPDATE bhavcopy_files
-            SET is_deleted=1
-            WHERE id=?
-        """, (file_id,))
+    cursor.execute(
+        f"""
+        DELETE FROM bhavcopy_files
+        WHERE id IN ({placeholders})
+        """,
+        ids
+    )
 
     conn.commit()
     conn.close()
 
-    return jsonify({"message": "Moved to trash"})
+    return redirect("/trash")
 
 
 @file_routes.route("/trash")
-def trash():
+def view_trash():
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id,file_name,trade_date,year,month
+        SELECT id, file_name, trade_date, year, month
         FROM bhavcopy_files
-        WHERE is_deleted=1
+        WHERE is_deleted = 1
+        ORDER BY trade_date DESC
     """)
 
     files = cursor.fetchall()
