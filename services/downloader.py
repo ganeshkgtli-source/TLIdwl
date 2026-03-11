@@ -131,17 +131,23 @@ def download_year_data(year):
     return f"Completed year {year}"
 
 
-def download_all_data():
+# def download_all_data():
 
+#     start_year = 2017
+#     current_year = datetime.date.today().year
+
+#     for year in range(start_year, current_year + 1):
+
+#         print(f"Starting year {year}")
+
+#         download_year_data(year)
+
+#         print(f"Completed year {year}")
+
+#     return "Download started for all years"
+def download_all_data():
     start_year = 2017
     current_year = datetime.date.today().year
-
     for year in range(start_year, current_year + 1):
-
-        print(f"Starting year {year}")
-
         download_year_data(year)
-
-        print(f"Completed year {year}")
-
-    return "Download started for all years"
+    return "Download started..."
