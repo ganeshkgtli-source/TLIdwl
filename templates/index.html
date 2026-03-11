@@ -61,7 +61,6 @@ transition:0.3s;
 background:#007bff;
 }
 
-
 /* MAIN CONTAINER */
 
 .main{
@@ -173,9 +172,9 @@ text-align:center;
  Trash 
 </a> -->
 <a href="/log-dashboard">  History</a>
-<button onclick="downloadCSV()">Download CSV</button>
+<a  href="/download_matrix">Download CSV</a>
 
-<button onclick="generateMatrix()">Generate Security Matrix</button>
+<a   href="/generate_matrix">Generate Security Matrix</a>
 
 <!-- <button onclick="openMatrix()">View Matrix</button> -->
 
@@ -258,25 +257,25 @@ function downloadAllYears(){
 window.location.href="/logs-all";
 }
 
-function downloadCSV(){
-    window.location="/download_matrix";
-}
+// function downloadCSV(){
+//     window.location="/download_matrix";
+// }
 
-function openMatrix(){
-    window.location="/matrix";
-}
+// function openMatrix(){
+//     window.location="/matrix";
+// }
 
-function generateMatrix(){
+// function generateMatrix(){
 
-    alert("Matrix generation started. This may take some time.");
+//     alert("Matrix generation started. This may take some time.");
 
-    fetch("/generate_matrix")
-    .then(response => response.json())
-    .then(data => {
-        alert(data.status);
-    });
+//     fetch("/generate_matrix")
+//     .then(response => response.json())
+//     .then(data => {
+//         alert(data.status);
+//     });
 
-}
+// }
 </script>
 
 
